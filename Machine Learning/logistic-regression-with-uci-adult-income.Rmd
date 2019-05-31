@@ -1,0 +1,228 @@
+---
+title: "Logistic Regression with UCI Adult Income"
+author: "Jason Nguyen"
+date: "August 8, 2017"
+output: 
+  html_document: 
+    theme: flatly
+    toc: true
+    number_sections: true
+---
+
+# Introduction
+This project explores logistic regression using the UCI Adult Income data set.
+We will try to predict the salary class of a person based upon the given 
+information. This is from an assigned project from Data Science and Machine
+Learning with R on Udemy. 
+
+# Get the Data
+
+```{r}
+adult <- read.csv("../input/adult.csv")
+str(adult)
+```
+
+# Data Cleaning
+From the structure output, we can see that some of these columns have a large
+number of factors. We can clean these columns by combining similar factors, thus
+reducing the total number of factors.
+
+## Work Class Combining
+
+```{r}
+table(adult$workclass)
+```
+
+Now we combine like factors:
+
+```{r}
+adult$workclass <- as.character(adult$workclass)
+
+adult$workclass[adult$workclass == "Without-pay" | 
+                  adult$workclass == "Never-worked"] <- "Unemployed"
+
+adult$workclass[adult$workclass == "State-gov" |
+                  adult$workclass == "Local-gov"] <- "SL-gov"
+
+adult$workclass[adult$workclass == "Self-emp-inc" |
+                  adult$workclass == "Self-emp-not-inc"] <- "Self-employed"
+
+table(adult$workclass)
+```
+
+## Marital Status Combining
+
+```{r}
+table(adult$marital.status)
+```
+
+We can reduce these factors into the following groups:
+
+- Married
+- Not-Married
+- Never-Married
+
+```{r}
+adult$marital.status <- as.character(adult$marital.status)
+
+adult$marital.status[adult$marital.status == "Married-AF-spouse" |
+                       adult$marital.status == "Married-civ-spouse" |
+                       adult$marital.status == "Married-spouse-absent"] <- "Married"
+
+adult$marital.status[adult$marital.status == "Divorced" |
+                       adult$marital.status == "Separated" |
+                       adult$marital.status == "Widowed"] <- "Not-Married"
+table(adult$marital.status)
+```
+
+## Country Combining
+There are a lot of countries here, we can reduce them to their respective regions.
+
+```{r}
+adult$native.country <- as.character(adult$native.country)
+
+north.america <- c("Canada", "Cuba", "Dominican-Republic", "El-Salvador", "Guatemala",
+                   "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua",
+                   "Outlying-US(Guam-USVI-etc)", "Puerto-Rico", "Trinadad&Tobago",
+                   "United-States")
+asia <- c("Cambodia", "China", "Hong", "India", "Iran", "Japan", "Laos",
+          "Philippines", "Taiwan", "Thailand", "Vietnam")
+south.america <- c("Columbia", "Ecuador", "Peru")
+europe <- c("England", "France", "Germany", "Greece", "Holand-Netherlands",
+            "Hungary", "Ireland", "Italy", "Poland", "Portugal", "Scotland",
+            "Yugoslavia")
+other <- c("South", "?")
+
+adult$native.country[adult$native.country %in% north.america] <- "North America"
+adult$native.country[adult$native.country %in% asia] <- "Asia"
+adult$native.country[adult$native.country %in% south.america] <- "South America"
+adult$native.country[adult$native.country %in% europe] <- "Europe"
+adult$native.country[adult$native.country %in% other] <- "Other"
+
+table(adult$native.country)
+```
+
+Now we can revert the altered columns back to factors since we had to change 
+them to characters:
+
+```{r}
+adult$native.country <- as.factor(adult$native.country)
+adult$marital.status <- as.factor(adult$marital.status)
+adult$workclass <- as.factor(adult$workclass)
+str(adult)
+```
+
+
+
+## Dealing with Missing Data
+
+During the data cleaning we can see that there were some values with just a "?".
+We can convert these values to NA so we can deal with it in a more efficient manner.
+
+```{r}
+table(adult$workclass)
+adult[adult == "?"] <- NA
+table(adult$workclass)
+```
+
+Now we can create a missingness map to get a visual idea of where there are NA 
+values in the dataframe.
+
+```{r}
+library(Amelia)
+missmap(adult, y.at = 1, y.labels = "", col = c("yellow", "black"), legend = FALSE)
+```
+
+From the missmap, we can see that all of the NA values are found within the occupation
+and workclass columns. We will choose to omit these values since there are only a few
+of them).
+
+```{r}
+adult <- na.omit(adult)
+missmap(adult, y.at = 1, y.label = "", legend = FALSE, col = c("yellow", "black"))
+```
+
+We can see that all of the NA values have been omitted from the dataset.
+
+# Exploratory Data Analysis
+
+First we'll plot a histogram of ages that is colored by income.
+
+```{r}
+library(ggplot2)
+ggplot(adult, aes(age)) + geom_histogram(aes(fill = income), color = "black",
+                                         binwidth = 1)
+```
+
+Here the coloring is indicative of percentage. From this plot we can see that 
+the percentage of people who make above 50K peaks out at roughly 35% 
+between ages 30 and 50. Next we will plot a histogram of hours worked per week.
+
+```{r}
+ggplot(adult, aes(hours.per.week)) + geom_histogram()
+```
+
+It is clear that the highest frequency of hours.per.week occurs at 40. What is
+the income class by region? First we need to change the name of the country 
+column to region.
+
+```{r}
+library(data.table)
+setnames(adult, "native.country", "region")
+
+# Reorder factor levels by count
+region.ordered <- reorder(adult$region, adult$region, length)
+region.ordered <- factor(region.ordered, levels = rev(levels(region.ordered)))
+
+ggplot(adult, aes(region.ordered)) + geom_bar(aes(fill = income), color = "black")
+```
+
+# Building the Model
+The purpose of this model is to classify people into two groups, below 50k or above 50k in income. We will build the model using training data, and then predict the salary class using the test group.
+
+## Train Test Split
+
+```{r}
+library(caTools)
+
+split <- sample.split(adult$income, SplitRatio = 0.7)
+train <- subset(adult, split == TRUE)
+test <- subset(adult, split == FALSE)
+```
+## Training The Model
+```{r}
+log.model <- glm(income ~ ., family = binomial(), train)
+```
+Let's break down what the code means. glm is the generalized linear model we will be using. income ~ . means that we want to model income using (~) every available feature (.). family = binomial() is used because we are predicting a binary outcome, below 50k or above 50k.
+
+## Prediction
+```{r}
+prediction <- predict(log.model, test, type = "response")
+```
+Here we are initiliazting predictions on the test data using our logistic regression model, log.model. We specify type = "response" so that we get predicted probabilities instead of probabilities on the logit scale.
+
+### Confusion Matrix
+
+We can compare our results using a confusion matrix. Since our predictions are predicted probabilities, we specifiy probabilities that are above or equal to 50% will be TRUE (above 50K) and anything below 50% will be FALSE (below 50K).
+```{r}
+table(test$income, prediction >= 0.5)
+```
+
+From the confusion matrix, we can predict determine the performance of our model.
+
+### Accuracy
+How close are the predicted values to the true values?
+```{r}
+(9639 + 2116) / (9639 + 744 + 2116 + 1311)
+```
+### Recall
+What is the true positive rate?
+```{r}
+9649 / (9639 + 1311)
+```
+### Precision
+Otherwise known as the positive predictive value
+```{r}
+9639 / (9639 + 744)
+```
+

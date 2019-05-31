@@ -1,0 +1,124 @@
+---
+title: "HW 6"
+author: "Matthew Fein"
+date: "March 6, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Decision Trees
+
+Fitting Classification Trees
+Data used are of hybrid car prices and specificationbs.  Setting a thresholf of $60 K the tree will model what are predictors for whether or not a car is a "luxury" car.
+```{r cars}
+library(ISLR)
+library(tree)
+cardata <- read.csv("hybrid_reg.csv", header = TRUE)
+cardata <- cardata[ , -2]
+luxury <- ifelse(cardata$msrp <= 60000, "No", "Yes")
+cardata <- data.frame(cardata, luxury)
+
+
+tree.cardata=tree(luxury~.-msrp,cardata)
+summary(tree.cardata)
+plot(tree.cardata)
+text(tree.cardata,pretty=0)
+tree.cardata
+set.seed(2)
+train=sample(1:nrow(cardata), 100)
+cardata.test=cardata[-train,]
+luxury.test=luxury[-train]
+tree.cardata=tree(luxury~.-msrp,cardata,subset=train)
+tree.pred=predict(tree.cardata,cardata.test,type="class")
+table(tree.pred,luxury.test)
+(39 + 2)/53
+set.seed(3)
+cv.cardata=cv.tree(tree.cardata,FUN=prune.misclass)
+names(cv.cardata)
+cv.cardata
+par(mfrow=c(1,2))
+plot(cv.cardata$size,cv.cardata$dev,type="b")
+plot(cv.cardata$k,cv.cardata$dev,type="b")
+prune.cardata=prune.misclass(tree.cardata,best=5)
+plot(prune.cardata)
+text(prune.cardata,pretty=0)
+tree.pred=predict(prune.cardata,cardata.test,type="class")
+table(tree.pred,luxury.test)
+(39+2)/53
+prune.cardata=prune.misclass(tree.cardata,best=9)
+plot(prune.cardata)
+text(prune.cardata,pretty=0)
+tree.pred=predict(prune.cardata,cardata.test,type="class")
+table(tree.pred,luxury.test)
+(39 + 2)/53
+
+```
+In this instance pruning did not improve the model, accuracy remained the same.
+## Fitting trees
+
+
+```{r }
+library(MASS)
+cardata <- cardata[ ,-9]
+set.seed(1)
+train = sample(1:nrow(cardata), nrow(cardata)/2)
+tree.cardata=tree(msrp~.,cardata,subset=train)
+summary(tree.cardata)
+plot(tree.cardata)
+text(tree.cardata,pretty=0)
+cv.cardata=cv.tree(tree.cardata)
+plot(cv.cardata$size,cv.cardata$dev,type='b')
+prune.cardata=prune.tree(tree.cardata,best=5)
+plot(prune.cardata)
+text(prune.cardata,pretty=0)
+yhat=predict(tree.cardata,newdata=cardata[-train,])
+cardata.test=cardata[-train,"msrp"]
+plot(yhat,cardata.test)
+abline(0,1)
+mean((yhat-cardata.test)^2)
+```
+
+There is a very large residual  error with this dataset.
+
+
+##Bagging Random Forests
+```{r}
+library(randomForest)
+set.seed(1)
+bag.cardata=randomForest(msrp~.,data=cardata,subset=train,mtry=13,importance=TRUE)
+bag.cardata
+yhat.bag = predict(bag.cardata,newdata=cardata[-train,])
+plot(yhat.bag, cardata.test)
+abline(0,1)
+mean((yhat.bag-cardata.test)^2)
+bag.cardata=randomForest(msrp~.,data=cardata,subset=train,mtry=13,ntree=25)
+yhat.bag = predict(bag.cardata,newdata=cardata[-train,])
+mean((yhat.bag-cardata.test)^2)
+set.seed(1)
+rf.cardata=randomForest(msrp~.,data=cardata,subset=train,mtry=6,importance=TRUE)
+yhat.rf = predict(rf.cardata,newdata=cardata[-train,])
+mean((yhat.rf-cardata.test)^2)
+importance(rf.cardata)
+varImpPlot(rf.cardata)
+
+## Boosting
+
+
+library(gbm)
+set.seed(1)
+boost.cardata=gbm(msrp~.,data=cardata[train,],distribution="gaussian",n.trees=5000,interaction.depth=4)
+summary(boost.cardata)
+par(mfrow=c(1,2))
+plot(boost.cardata,i="accelrate")
+plot(boost.cardata,i="mpg")
+yhat.boost=predict(boost.cardata,newdata=cardata[-train,],n.trees=5000)
+mean((yhat.boost-cardata.test)^2)
+boost.cardata=gbm(msrp~.,data=cardata[train,],distribution="gaussian",n.trees=5000,interaction.depth=4,shrinkage=0.2,verbose=F)
+yhat.boost=predict(boost.cardata,newdata=cardata[-train,],n.trees=5000)
+mean((yhat.boost-cardata.test)^2)
+```
+
+Boosting had the same effect

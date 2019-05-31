@@ -1,0 +1,182 @@
+---
+title: "HW 2"
+author: "Matthew Fein"
+date: "January 27, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## HW 2 
+
+4.6.1 Import data
+```{r}
+library(ISLR)
+admissions <- read.csv("admissions.csv", header = TRUE)
+admissions$admit <- as.factor(admissions$admit)
+```
+Names of predictor  variables and summary statistics.  Admission to graduate school is the predicted variable.
+```{r}
+names(admissions)
+dim(admissions)
+summary(admissions)
+pairs(admissions, col=admissions$admit)
+admissions$admit <- as.integer(admissions$admit)
+cor(admissions)
+
+attach(admissions)
+admissions$admit<- as.factor(admissions$admit)
+plot(gre, col= admissions$admit)
+```
+
+4.6.2- Logistic Regression
+```{r}
+glm.fits=glm(admit~gre+gpa+rank,data=admissions,family=binomial)
+summary(glm.fits)
+coef(glm.fits)
+summary(glm.fits)$coef
+```
+All three predictors are significant- rank is negatively related to admission since 1 is best and 4 is worst.
+```{r}
+summary(glm.fits)$coef[,3]
+glm.probs=predict(glm.fits,type="response")
+glm.probs[1:10]
+```
+A look at the first 10 predicted logits.
+```{r}
+glm.pred=ifelse(glm.probs>0.5,"Admitted", "Denied")
+glm.pred[glm.probs>.5]="Admitted"
+attach(admissions)
+table(glm.pred,admit)
+(20+98)/400
+detach(admissions)
+```
+The current model is accurate only %30 of the time- next I will try training and testing separately.
+```{r ech0 = FALSE}
+train <- admissions[1:300, ]
+admissions.test <- admissions[301:400,]
+dim(admissions.test)
+
+glm.fits=glm(admit~gre+gpa+rank,data=train,family=binomial)
+glm.probs=predict(glm.fits,train,type="response")
+glm.pred=rep("Denied", 300)
+glm.pred[glm.probs>.5]="Admitted"
+table(glm.pred,train$admit)
+(18+67)/300
+```
+Our model is 28% accurate in training.
+```{r echo=FALSE}
+glm.fits=glm(admit~gre+gpa+rank,data=admissions.test,family=binomial)
+glm.probs=predict(glm.fits,admissions.test,type="response")
+glm.pred=rep("Denied", 100)
+glm.pred[glm.probs>.5]="Admitted"
+table(glm.pred,admissions.test$admit)
+(3+34)/100
+
+```
+This improves to 37% accuracy on the test data (100/400)
+
+
+4.6.3 Linear Discriminant Analysis
+```{r echo=FALSE}
+library(MASS)
+lda.fit=lda(admit~gre+gpa+rank,data=train)
+lda.fit
+plot(lda.fit)
+lda.pred=predict(lda.fit, admissions.test)
+names(lda.pred)
+lda.class=lda.pred$class
+table(lda.class,admissions.test$admit)
+mean(lda.class==admissions.test$admit)
+```
+Accuracy on the test set improves to 69% when LDA is used, however, the assumption of equal distributions across clesses of outcome is violated.
+```{r echo=FALSE}
+
+sum(lda.pred$posterior[,1]>=.5)
+sum(lda.pred$posterior[,1]<.5)
+lda.pred$posterior[1:20,1]
+lda.class[1:20]
+sum(lda.pred$posterior[,1]>.9)
+```
+When the threshold for admission is adjusted from 0.5 to 0.9 the number of admissions decreases from 86 to 14.
+
+4.6.4 Quadratic Discriminant Analysis
+
+```{r}
+qda.fit=qda(admit~gre+gpa+rank,data=train)
+qda.fit
+qda.class=predict(qda.fit,admissions.test)$class
+table(qda.class,admissions.test$admit)
+mean(qda.class==admissions.test$admit)
+```
+Using a QDA does not increase the model's accuracy.
+
+
+4.6.5 K-Nearest Neighbors
+```{r}
+library(class)
+train.X=cbind(train$gre,train$gpa)
+test.X=cbind(admissions.test$gre,admissions.test$gpa)
+train.admit=train$admit
+set.seed(1)
+knn.pred=knn(train.X,test.X,train.admit,k=1)
+table(knn.pred,admissions.test$admit)
+(43+13)/100
+```
+Our model is 56% accurate using a k of 1.
+```{r}
+
+knn.pred=knn(train.X,test.X,train.admit,k=3)
+table(knn.pred,admissions.test$admit)
+mean(knn.pred==admissions.test$admit)
+
+```
+This improves to 67% with k of 3, however, we do not know what the contributions of each predictor variable are.
+
+4.6.6 Standardizing data for KNN analysis
+```{r}
+standardized.X=scale(admissions[,-1])
+var(admissions[,1])
+var(admissions[,2])
+var(standardized.X[,1])
+var(standardized.X[,2])
+```
+Standardizing the variables provides us with equal variances
+```{r echo=FALSE}
+test=301:400
+train.X=standardized.X[-test,]
+test.X=standardized.X[test,]
+train.Y=admit[-test]
+test.Y=admit[test]
+set.seed(1)
+knn.pred=knn(train.X,test.X,train.Y,k=1)
+mean(test.Y!=knn.pred)
+mean(test.Y!="0")
+table(knn.pred,test.Y)
+(43+11)/100
+```
+With a k=1 the model is 54% accurate.
+```{r}
+knn.pred=knn(train.X,test.X,train.Y,k=3)
+table(knn.pred,test.Y)
+(54+9/100)
+knn.pred=knn(train.X,test.X,train.Y,k=5)
+table(knn.pred,test.Y)
+(52+7)/100
+```
+This improves with k=3 and is less accurate with k=5.
+```{r echo =FALSE}
+glm.fits=glm(admit~.,data=admissions,family=binomial,subset=-test)
+glm.probs=predict(glm.fits,admissions[test,],type="response")
+glm.pred=rep("No",100)
+glm.pred[glm.probs>.5]="Yes"
+table(glm.pred,test.Y)
+glm.pred=rep("No",100)
+glm.pred[glm.probs>.25]="Yes"
+table(glm.pred,test.Y)
+
+```
+
+In comparison a logistic regression is 68% accurate with a threshold of 0.5.  Adujstment to .25 decreased accuracy.

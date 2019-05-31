@@ -1,0 +1,121 @@
+---
+title: "HW 1"
+author: "Matthew Fein"
+date: "January 21, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Machine Learning HW #1 
+
+3.6.1
+Data was obtained from http://users.stat.ufl.edu/~winner/datasets.html.
+The dataset includes pricing and various other attributes for 153 hybrid-electric cars.
+
+```{r data}
+data <- read.csv("hybrid_reg.csv", header = TRUE)
+data1 <- read.csv("hybrid_reg.csv", header = TRUE)
+library(MASS)
+library(ISLR)
+
+```
+
+3.6.2
+Acceleration rate is the predictor variable and msrp is the predictee.
+```{r simple regression}
+
+names(data)
+attach(data)
+
+lm.fit <- lm(msrp~accelrate)
+
+lm.fit
+summary(lm.fit)
+
+names(lm.fit)
+coef(lm.fit)
+
+confint(lm.fit)
+
+
+predict(lm.fit,data.frame(accelrate=(c(8,10,12))), interval="confidence")
+predict(lm.fit,data.frame(accelrate=(c(8,10,12))), interval="prediction")
+
+
+plot(accelrate,msrp)
+abline(lm.fit)
+abline(lm.fit,lwd=3)
+abline(lm.fit,lwd=3,col="red")
+plot(accelrate,msrp,col="red")
+plot(accelrate,msrp,pch=20)
+plot(accelrate,msrp,pch="+")
+plot(1:20,1:20,pch=1:20)
+par(mfrow=c(2,2))
+plot(lm.fit)
+plot(predict(lm.fit), residuals(lm.fit))
+plot(predict(lm.fit), rstudent(lm.fit))
+plot(hatvalues(lm.fit))
+which.max(hatvalues(lm.fit))
+
+```
+
+3.6.3
+MSRP is being predicted by acceleration rate and mpgmpe (a measure of mpg when fully charged).  Data was trimmed to eliminate collinearity effects which made "vif" trigger an error.
+```{r}
+data <- data[ , -2]
+data <- data[ ,-8]
+lm.fit=lm(msrp~accelrate+mpgmpge,data=data)
+summary(lm.fit)
+lm.fit=lm(msrp~.,data=data)
+summary(lm.fit)
+library(car)
+vif(lm.fit)
+lm.fit1=lm(msrp~accelrate+mpg)
+summary(lm.fit1)
+
+```
+
+3.6.4
+Interaction term is  added to previous model.
+```{r}
+summary(lm(msrp~accelrate*mpg))
+```
+
+3.6.5
+
+```{r}
+lm.fit2=lm(msrp~mpg+I(mpg^2))
+summary(lm.fit2)
+lm.fit=lm(msrp~mpg)
+anova(lm.fit,lm.fit2)
+par(mfrow=c(2,2))
+plot(lm.fit2)
+lm.fit5=lm(msrp~poly(mpg,5))
+summary(lm.fit5)
+summary(lm(msrp~log(mpg)))
+```
+
+3.6.6
+The variables car class and year are used to predict msrp.
+```{r}
+lm.fit=lm(msrp~carclass*year, data = data1)
+summary(lm.fit)
+
+contrasts(carclass)
+```
+
+3.6.7
+
+```{r}
+LoadLibraries=function(){
+ library(ISLR)
+ library(MASS)
+ print("The libraries have been loaded.")
+ }
+LoadLibraries
+LoadLibraries()
+```
+

@@ -1,0 +1,106 @@
+---
+title: "HW 3"
+author: "Matthew Fein"
+date: "February 7, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+5.3.1 Tghe Validation Set Approach
+Data used are for electric vehicles and miles/gallon and acceleration rate are the variables used.
+
+```{r cars}
+data.auto <- read.csv("hybrid_reg.csv", header = TRUE)
+data.auto <- data.auto[-153, ]
+
+library(ISLR)
+set.seed(1)
+train=sample(152,76)
+lm.fit=lm(mpg~accelrate,data=data.auto,subset=train)
+attach(data.auto)
+mean((mpg-predict(lm.fit,data.auto))[-train]^2)
+lm.fit2=lm(mpg~poly(accelrate,2),data=data.auto,subset=train)
+mean((mpg-predict(lm.fit2,data.auto))[-train]^2)
+lm.fit3=lm(mpg~poly(accelrate,3),data=data.auto,subset=train)
+mean((mpg-predict(lm.fit3,data.auto))[-train]^2)
+set.seed(2)
+train=sample(152,76)
+lm.fit=lm(mpg~accelrate,subset=train)
+mean((mpg-predict(lm.fit,data.auto))[-train]^2)
+lm.fit2=lm(mpg~poly(accelrate,2),data=data.auto,subset=train)
+mean((mpg-predict(lm.fit2,data.auto))[-train]^2)
+lm.fit3=lm(mpg~poly(accelrate,3),data=data.auto,subset=train)
+mean((mpg-predict(lm.fit3,data.auto))[-train]^2)
+```
+As expected the mean residual errors are overestimated for the last three models.  The first three models are on training data and the latter three on testing data.  In this case the linear fit is best.
+
+5.3.2 LOOC cross-validation
+
+```{r pressure, echo=FALSE}
+glm.fit=glm(mpg~accelrate,data=data.auto)
+coef(glm.fit)
+lm.fit=lm(mpg~accelrate,data=data.auto)
+coef(lm.fit)
+library(boot)
+glm.fit=glm(mpg~accelrate,data=data.auto)
+cv.err=cv.glm(data.auto,glm.fit)
+cv.err$delta
+cv.error=rep(0,5)
+for (i in 1:5){
+ glm.fit=glm(mpg~poly(accelrate,i),data=data.auto)
+ cv.error[i]=cv.glm(data.auto,glm.fit)$delta[1]
+ }
+cv.error
+```
+Here we see a decrease from the linear t quadratic models and then no further improvement.
+5.3.3 10-fold validation
+```{r}
+set.seed(17)
+cv.error.10=rep(0,10)
+for (i in 1:10){
+ glm.fit=glm(mpg~poly(accelrate,i),data=data.auto)
+ cv.error.10[i]=cv.glm(data.auto,glm.fit,K=10)$delta[1]
+ }
+cv.error.10
+```
+Using 10 fold validation we see that our model is most accurate when there are less iterations.
+5.3.4Boot strapping
+```{r}
+data2 <- data.frame(cbind(data.auto$accelrate, data.auto$mpg))
+colnames(data2) <- c("X","Y")
+alpha.fn=function(data,index){
+ X=data$X[index]
+ Y=data$Y[index]
+ return((var(Y)-cov(X,Y))/(var(X)+var(Y)-2*cov(X,Y)))
+ }
+alpha.fn(data2,1:100)
+set.seed(1)
+alpha.fn(data2,sample(100,100,replace=T))
+boot(data2,alpha.fn,R=1000)
+```
+
+5.3.5 Bootstrapping cont'd
+
+```{r}
+boot.fn=function(data,index){
+ return(coef(lm(mpg~accelrate,data=data,subset=index)))
+}
+boot.fn(data.auto,1:152)
+set.seed(1)
+boot.fn(data.auto,sample(152,152,replace=T))
+boot.fn(data.auto,sample(152,152,replace=T))
+boot(data.auto,boot.fn,1000)
+summary(lm(mpg~accelrate,data=data.auto))$coef
+boot.fn=function(data,index){
+ coefficients(lm(mpg~accelrate+I(accelrate^2),data=data,subset=index))
+}
+set.seed(1)
+boot(data.auto,boot.fn,1000)
+summary(lm(mpg~accelrate+I(accelrate^2),data=data.auto))$coef
+```
+

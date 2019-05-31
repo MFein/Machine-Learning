@@ -1,0 +1,126 @@
+---
+title: "HW 5"
+author: "Matthew Fein"
+date: "February 28, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Chapter 7 Lab
+
+Data is of arrests for violent crimes and UrbanPop is the percentage of a state's population that lives in urban areas
+
+```{r }
+# Chapter 7 Lab: Non-linear Modeling
+
+library(ISLR)
+attach(USArrests)
+USArrests <- USArrests
+
+# Polynomial Regression and Step Functions
+
+fit=lm(UrbanPop~poly(Murder,4),data=USArrests)
+coef(summary(fit))
+fit2=lm(UrbanPop~poly(Murder,4,raw=T),data=USArrests)
+coef(summary(fit2))
+fit2a=lm(UrbanPop~Murder+I(Murder^2)+I(Murder^3)+I(Murder^4),data=USArrests)
+coef(fit2a)
+fit2b=lm(UrbanPop~cbind(Murder,Murder^2,Murder^3,Murder^4),data=USArrests)
+Murderlims=range(Murder)
+Murder.grid=seq(from=Murderlims[1],to=Murderlims[2])
+preds=predict(fit,newdata=list(Murder=Murder.grid),se=TRUE)
+se.bands=cbind(preds$fit+2*preds$se.fit,preds$fit-2*preds$se.fit)
+par(mfrow=c(1,2),mar=c(4.5,4.5,1,1),oma=c(0,0,4,0))
+plot(Murder,UrbanPop,xlim=Murderlims,cex=.5,col="darkgrey")
+title("Degree-4 Polynomial",outer=T)
+lines(Murder.grid,preds$fit,lwd=2,col="blue")
+matlines(Murder.grid,se.bands,lwd=1,col="blue",lty=3)
+preds2=predict(fit2,newdata=list(Murder=Murder.grid),se=TRUE)
+max(abs(preds$fit-preds2$fit))
+fit.1=lm(UrbanPop~Murder,data=USArrests)
+fit.2=lm(UrbanPop~poly(Murder,2),data=USArrests)
+fit.3=lm(UrbanPop~poly(Murder,3),data=USArrests)
+fit.4=lm(UrbanPop~poly(Murder,4),data=USArrests)
+fit.5=lm(UrbanPop~poly(Murder,5),data=USArrests)
+anova(fit.1,fit.2,fit.3,fit.4,fit.5)
+coef(summary(fit.5))
+(-11.983)^2
+fit.1=lm(UrbanPop~Assault+Murder,data=USArrests)
+fit.2=lm(UrbanPop~Assault+poly(Murder,2),data=USArrests)
+fit.3=lm(UrbanPop~Assault+poly(Murder,3),data=USArrests)
+anova(fit.1,fit.2,fit.3)
+fit=glm(I(UrbanPop>250)~poly(Murder,4),data=USArrests,family=binomial)
+preds=predict(fit,newdata=list(Murder=Murder.grid),se=T)
+pfit=exp(preds$fit)/(1+exp(preds$fit))
+se.bands.logit = cbind(preds$fit+2*preds$se.fit, preds$fit-2*preds$se.fit)
+se.bands = exp(se.bands.logit)/(1+exp(se.bands.logit))
+preds=predict(fit,newdata=list(Murder=Murder.grid),type="response",se=T)
+plot(Murder,I(UrbanPop>250),xlim=Murderlims,type="n",ylim=c(0,.2))
+points(jitter(Murder), I((UrbanPop>250)/5),cex=.5,pch="|",col="darkgrey")
+lines(Murder.grid,pfit,lwd=2, col="blue")
+matlines(Murder.grid,se.bands,lwd=1,col="blue",lty=3)
+table(cut(Murder,4))
+fit=lm(UrbanPop~cut(Murder,4),data=USArrests)
+coef(summary(fit))
+
+# Splines
+
+library(splines)
+fit=lm(UrbanPop~bs(Murder,knots=c(25,40,60)),data=USArrests)
+pred=predict(fit,newdata=list(Murder=Murder.grid),se=T)
+plot(Murder,UrbanPop,col="gray")
+lines(Murder.grid,pred$fit,lwd=2)
+lines(Murder.grid,pred$fit+2*pred$se,lty="dashed")
+lines(Murder.grid,pred$fit-2*pred$se,lty="dashed")
+dim(bs(Murder,knots=c(25,40,60)))
+dim(bs(Murder,df=6))
+attr(bs(Murder,df=6),"knots")
+fit2=lm(UrbanPop~ns(Murder,df=4),data=USArrests)
+pred2=predict(fit2,newdata=list(Murder=Murder.grid),se=T)
+lines(Murder.grid, pred2$fit,col="red",lwd=2)
+plot(Murder,UrbanPop,xlim=Murderlims,cex=.5,col="darkgrey")
+title("Smoothing Spline")
+fit=smooth.spline(Murder,UrbanPop,df=16)
+fit2=smooth.spline(Murder,UrbanPop,cv=TRUE)
+fit2$df
+lines(fit,col="red",lwd=2)
+lines(fit2,col="blue",lwd=2)
+legend("topright",legend=c("16 DF","6.8 DF"),col=c("red","blue"),lty=1,lwd=2,cex=.8)
+plot(Murder,UrbanPop,xlim=Murderlims,cex=.5,col="darkgrey")
+title("Local Regression")
+fit=loess(UrbanPop~Murder,span=.2,data=USArrests)
+fit2=loess(UrbanPop~Murder,span=.5,data=USArrests)
+lines(Murder.grid,predict(fit,data.frame(Murder=Murder.grid)),col="red",lwd=2)
+lines(Murder.grid,predict(fit2,data.frame(Murder=Murder.grid)),col="blue",lwd=2)
+legend("topright",legend=c("Span=0.2","Span=0.5"),col=c("red","blue"),lty=1,lwd=2,cex=.8)
+
+# GAMs
+
+gam1=lm(UrbanPop~ns(Rape,4)+ns(Murder,5)+Assault,data=USArrests)
+library(gam)
+library(akima)
+gam.m3=gam(UrbanPop~s(Rape,4)+s(Murder,5)+Assault,data=USArrests)
+par(mfrow=c(1,3))
+plot(gam.m3, se=TRUE,col="blue")
+
+gam.m1=gam(UrbanPop~s(Murder,5)+Assault,data=USArrests)
+gam.m2=gam(UrbanPop~Rape+s(Murder,5)+Assault,data=USArrests)
+anova(gam.m1,gam.m2,gam.m3,test="F")
+summary(gam.m3)
+preds=predict(gam.m2,newdata=USArrests)
+gam.lo=gam(UrbanPop~s(Rape,df=4)+lo(Murder,span=0.7)+Assault,data=USArrests)
+
+gam.lo.i=gam(UrbanPop~lo(Rape,Murder,span=0.5)+Assault,data=USArrests)
+
+plot(gam.lo.i)
+gam.lr=gam(I(UrbanPop>250)~Rape+s(Murder,df=5)+Assault,family=binomial,data=USArrests)
+par(mfrow=c(1,3))
+plot(gam.lr,se=T,col="green")
+table(Assault,I(UrbanPop>250))
+gam.lr.s=gam(I(UrbanPop>250)~Rape+s(Murder,df=5)+Assault,family=binomial,data=USArrests,subset=(Assault!="1. < HS Grad"))
+plot(gam.lr.s,se=T,col="green")
+```
+
